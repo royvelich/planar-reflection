@@ -3,11 +3,16 @@ project(planar-reflection)
 
 set(CMAKE_CXX_STANDARD 20)
 
-# Sources
+# sources
 file(GLOB SOURCES
-	src/main.cpp)
+	src/main.cpp
+	src/obj_loader.cpp
+	src/imgui_impl_glfw.cpp
+	src/imgui_impl_opengl3.cpp
+	include/obj_loader.h
+	include/imgui_impl_glfw.h
+	include/imgui_impl_opengl3.h)
 
-set(SOURCES src/main.cpp)
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # glfw
@@ -27,5 +32,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE glm)
 add_subdirectory(libs/nativefiledialog EXCLUDE_FROM_ALL)
 target_link_libraries(${PROJECT_NAME} PRIVATE nativefiledialog)
 
-# Source Tree
-source_group(TREE ${PROJECT_SOURCE_DIR} FILES ${SOURCES} ${imgui_sources})
+# imgui
+set(imgui_INCLUDE_DIRS "libs/imgui/imgui")
+add_subdirectory(libs/imgui EXCLUDE_FROM_ALL)
+target_link_libraries(${PROJECT_NAME} PRIVATE imgui)
+target_include_directories(${PROJECT_NAME} PUBLIC ${imgui_INCLUDE_DIRS})
+
+# project
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
+# source tree
+source_group(TREE ${PROJECT_SOURCE_DIR} FILES ${SOURCES})
