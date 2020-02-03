@@ -4,11 +4,32 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <nfd.h>
+#include <string>
+#include "obj_model.h"
+#include "shader_program.h"
 
+/**
+ * Defines
+ */
+#define VERTEX_SHADER_PATH "..//shaders//vertex.glsl"
+#define FRAGMENT_SHADER_PATH "..//shaders//fragment.glsl"
+
+/**
+ * Function definitions
+ */
+void LoadModel(GLuint& vao, GLuint& vbo, GLuint& ibo, const nfdchar_t* file_path_ptr);
+
+/**
+ * Main
+ */
 int main(int, char**)
 {
     GLFWwindow* window;
-
+    GLuint vbo;
+    GLuint ibo;
+    GLuint vao;
+	
     // Initialize GLFW
     if (!glfwInit())
     {
@@ -58,6 +79,9 @@ int main(int, char**)
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+	// Create shader program
+    ShaderProgram shader_program(VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
+
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
@@ -68,42 +92,31 @@ int main(int, char**)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
+        ImGui::Begin("Menu");
+    	
+        if (ImGui::Button("Load model..."))
         {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::End();
+            nfdchar_t* file_path_ptr = NULL;
+            nfdresult_t result = NFD_OpenDialog("obj;png,jpg", NULL, &file_path_ptr);
+            if (result == NFD_OKAY)
+            {
+                LoadModel(vao, vbo, ibo, file_path_ptr);
+            }
+            else if (result == NFD_CANCEL)
+            {
+            	
+            }
+            else
+            {
+            	
+            }
         }
 
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
-        }
+        ImGui::ColorEdit3("Clear color", (float*)&clear_color);
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    	
+        ImGui::End();
+
 
         // Rendering
         ImGui::Render();
@@ -114,6 +127,9 @@ int main(int, char**)
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+
+
+    	
         glfwSwapBuffers(window);
     }
 
@@ -131,4 +147,39 @@ int main(int, char**)
     glfwTerminate();
 
     return 0;
+}
+
+/**
+ * LoadModel
+ */
+void LoadModel(GLuint& vao, GLuint& vbo, GLuint& ibo, const nfdchar_t* file_path_ptr)
+{
+    // Cleanup previous allocated buffers
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &vbo);
+    glDeleteBuffers(1, &ibo);
+
+    // Load obj file
+    std::string file_path(file_path_ptr);
+    ObjModel obj_model(file_path);
+    auto& vertices = obj_model.GetVertices();
+    auto& vertex_indices = obj_model.GetVertexIndices();
+
+    // Create VBO (vertex buffer object) on GPU, and copy vertex data from CPU
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), &vertices[0], GL_STATIC_DRAW);
+
+    // Create VAO (vertex array object) and assign attributes
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+    glEnableVertexAttribArray(0);
+
+    // Create IBO (index buffer object)
+    glGenBuffers(1, &ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(vertex_indices), &vertex_indices[0], GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
 }

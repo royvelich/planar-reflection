@@ -6,12 +6,17 @@ set(CMAKE_CXX_STANDARD 20)
 # sources
 file(GLOB SOURCES
 	src/main.cpp
-	src/obj_loader.cpp
+	src/obj_model.cpp
+	src/shader_program.cpp
+	src/utils.cpp
 	src/imgui_impl_glfw.cpp
 	src/imgui_impl_opengl3.cpp
-	include/obj_loader.h
+	include/obj_model.h
+	include/shader_program.h
+	include/utils.h
 	include/imgui_impl_glfw.h
-	include/imgui_impl_opengl3.h)
+	include/imgui_impl_opengl3.h
+	shaders/*.glsl)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
