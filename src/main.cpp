@@ -7,6 +7,8 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <nfd.h>
+#include <glm/glm.hpp>
+#include <glm/ext.hpp>
 
 // STL includes
 #include <string>
@@ -22,8 +24,9 @@
 /**
  * Defines
  */
-#define VERTEX_SHADER_PATH "..//shaders//vertex.glsl"
-#define FRAGMENT_SHADER_PATH "..//shaders//fragment.glsl"
+#define VERTEX_SHADER_PATH ".//shaders//vertex.glsl"
+#define FRAGMENT_SHADER_PATH ".//shaders//fragment.glsl"
+#define PLANE_MODEL_PATH ".//models//obj//plane.obj"
 #define INITIAL_WIDTH 1024
 #define INITIAL_HEIGHT 768
 
@@ -33,15 +36,17 @@
 int main(int, char**)
 {
 	// Scene objects
-    std::vector<std::unique_ptr<ObjModel>> models;
-    std::vector<std::unique_ptr<PointLight>> point_lights;
-    std::vector<std::unique_ptr<Camera>> cameras;
+    std::vector<std::shared_ptr<ObjModel>> models;
+    std::vector<std::shared_ptr<PointLight>> point_lights;
+    std::vector<std::shared_ptr<Camera>> cameras;
     uint32_t active_camera = 0;
     uint32_t active_light = 0;
+    uint32_t active_model = 1;
 
 	// OpenGL objects
     GLFWwindow* window;
     glm::vec4 clear_color(0.45f, 0.55f, 0.60f, 1.00f);
+    glm::vec4 model_color(0, 1, 0.5, 1.00f);
     int width = INITIAL_WIDTH;
     int height = INITIAL_HEIGHT;
 	
@@ -96,24 +101,32 @@ int main(int, char**)
 	 * Create scene objects
 	 */
 
+	// Plane
+    auto plane_model = std::make_shared<ObjModel>(PLANE_MODEL_PATH);
+    models.push_back(plane_model);
+    plane_model->GetMaterial().SetAmbientColor(glm::vec3(0.5,0.5,0.5));
+    plane_model->GetMaterial().SetDiffuseColor(glm::vec3(0.5, 0.5, 0.5));
+
 	// Camera
-	auto camera = std::make_unique<Camera>(
-		glm::vec3(0,3,-5), 
+	auto camera = std::make_shared<Camera>(
+		glm::vec3(0,5,-10), 
 		glm::vec3(0,0,0), 
 		glm::vec3(0,1,0),
 		float(width) / float(height),
-        0.2,
-        5);
+        0.1f,
+        100);
 
 	// Point light
-	auto point_light = std::make_unique<PointLight>(
+	auto point_light = std::make_shared<PointLight>(
         camera->GetEye(),
-        glm::vec3(1,1,1),
-        glm::vec3(1,1,1));
+        glm::vec3(0.2, 0.2, 0.2),
+        glm::vec3(0.5, 0.5, 0.5));
 
 	// Move scene objects to corresponding lists
-    cameras.push_back(std::move(camera));
-	point_lights.push_back(std::move(point_light));
+    cameras.push_back(camera);
+	point_lights.push_back(point_light);
+
+    glEnable(GL_DEPTH_TEST);
 
     /**
      * Main loop
@@ -135,8 +148,10 @@ int main(int, char**)
             nfdresult_t result = NFD_OpenDialog("obj;png,jpg", NULL, &file_path_ptr);
             if (result == NFD_OKAY)
             {
-                auto model = std::make_unique<ObjModel>(std::string(file_path_ptr));
-                models.push_back(std::move(model));
+                auto model = std::make_shared<ObjModel>(std::string(file_path_ptr));
+                models.push_back(model);
+                model->GetMaterial().SetAmbientColor(model_color);
+                model->GetMaterial().SetDiffuseColor(model_color);
             }
             else if (result == NFD_CANCEL)
             {
@@ -147,7 +162,17 @@ int main(int, char**)
             	
             }
         }
+    	
         ImGui::ColorEdit3("Clear color", (float*)&clear_color);
+        if(ImGui::ColorEdit3("Model color", (float*)&model_color))
+        {
+			if(models.size() > 1)
+			{
+                models[active_model]->GetMaterial().SetAmbientColor(model_color);
+                models[active_model]->GetMaterial().SetDiffuseColor(model_color);
+			}
+        }
+    	
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGui::End();
         ImGui::Render();
@@ -160,10 +185,7 @@ int main(int, char**)
         glfwGetFramebufferSize(window, &width, &height);
         glViewport(0, 0, width, height);
         glClearColor(clear_color.r, clear_color.g, clear_color.b, clear_color.a);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-    	// Render ImGui
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     	// Reset aspect ratio
         cameras[active_camera]->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
@@ -182,6 +204,10 @@ int main(int, char**)
     	
     	for (auto& model : models)
         {
+            auto local_transform = model->GetLocalTransform();
+            local_transform = glm::rotate(local_transform, glm::pi<float>() / 300, glm::vec3(0, 1, 0));
+            model->SetLocalTransform(local_transform);
+    		
             // Set transformations
             shader_program.SetUniform("model", model->GetModelTransform());
 
@@ -192,6 +218,9 @@ int main(int, char**)
             // Render model
             model->Render();
     	}
+
+        // Render ImGui
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     	// Swap buffers
         glfwSwapBuffers(window);

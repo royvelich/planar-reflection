@@ -39,3 +39,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include
 
 # source tree
 source_group(TREE ${PROJECT_SOURCE_DIR} FILES ${SOURCES})
+
+# visual studio properties
+set_target_properties(
+    ${PROJECT_NAME} PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

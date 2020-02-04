@@ -14,6 +14,13 @@
 class ObjModel
 {
 public:
+	struct Vertex
+	{
+		glm::vec3 position;
+		glm::vec3 normal;
+		glm::vec2 uv;
+	};
+	
 	ObjModel(const std::string& file_path);
 	ObjModel(const std::string& file_path, const Material& material);
 	virtual ~ObjModel();
@@ -30,7 +37,7 @@ public:
 	
 	void Render() const;
 
-	const Material& GetMaterial() const;
+	Material& GetMaterial();
 	void SetMaterial(const Material& material);
 
 	void SetLocalTransform(const glm::mat4& local_transform);
@@ -38,35 +45,38 @@ public:
 
 	const glm::mat4& GetLocalTransform() const;
 	const glm::mat4& GetWorldTransform() const;
-	const glm::mat4& GetModelTransform() const;
+	glm::mat4 GetModelTransform() const;
 	
 private:
 	void CreateBuffers();
 	void DestroyBuffers();
 	
-	static void DestroyAttribute(GLuint& vbo, GLuint& ibo);
-	static void CreateAttribute(GLuint id, GLuint& vbo, GLuint& ibo, const std::vector<glm::vec3>& data, const std::vector<uint32_t>& indices);
-	
-	void ParseVertex(std::istream& line_stream);
+	void ParseVertexPosition(std::istream& line_stream);
 	void ParseVertexNormal(std::istream& line_stream);
 	void ParseVertexTexture(std::istream& line_stream);
 	void ParseFace(std::istream& line_stream);
 
 	static glm::vec3 Vec3FromStream(std::istream& line_stream);
 	static glm::vec2 Vec2FromStream(std::istream& line_stream);
+	static std::vector<Vertex> InterleaveData(
+		std::vector<glm::vec3> positions,
+		std::vector<glm::vec3> normals,
+		std::vector<glm::vec2> uvs,
+		std::vector<uint32_t> position_indices,
+		std::vector<uint32_t> normal_indices,
+		std::vector<uint32_t> uv_indices);
 	
-	std::vector<glm::vec3> vertices_;
+	std::vector<glm::vec3> positions_;
 	std::vector<glm::vec3> normals_;
 	std::vector<glm::vec2> uvs_;
-	std::vector<uint32_t> vertex_indices_;
+	std::vector<uint32_t> position_indices_;
 	std::vector<uint32_t> normal_indices_;
 	std::vector<uint32_t> uv_indices_;
+	std::vector<Vertex> vertices_;
 
-	GLuint vbo_vertices_;
-	GLuint vbo_normals_;
-	GLuint ibo_vertices_;
-	GLuint ibo_normals_;
 	GLuint vao_;
+	GLuint vbo_;
+	GLuint ibo_;
 
 	glm::mat4 local_transform_;
 	glm::mat4 world_transform_;
