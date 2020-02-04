@@ -192,7 +192,7 @@ int main(int, char**)
         glfwGetFramebufferSize(window, &width, &height);
         glViewport(0, 0, width, height);
         glClearColor(clear_color.r, clear_color.g, clear_color.b, clear_color.a);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     	// Reset aspect ratio
         cameras[active_camera]->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
@@ -209,25 +209,39 @@ int main(int, char**)
         shader_program.SetUniform("view", cameras[active_camera]->GetViewTransform());
         shader_program.SetUniform("projection", cameras[active_camera]->GetProjectionTransform());
 
-        
+		// Roate models around y-axis  
         TransformModels(models);
+
+    	// Render models
         RenderModels(models, shader_program, 0.1, false);
 
+    	// Enable stencil test
         glEnable(GL_STENCIL_TEST);
+
+    	// Write 1 in stencil buffer at all fragments of the next render (mirror)
         glStencilFunc(GL_ALWAYS, 1, 0xFF);
         glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
         glStencilMask(0xFF);
+
+    	// Do not write to z-buffer (mirror)
         glDepthMask(GL_FALSE);
-        glClear(GL_STENCIL_BUFFER_BIT);
-    	
+
+    	// Render mirror plane
         RenderPlane(models, shader_program);
 
+    	// Set teh stencil test to pass only at fragments which were rendered by the mirror plane
         glStencilFunc(GL_EQUAL, 1, 0xFF);
+
+    	// Do not write to stencil buffer
         glStencilMask(0x00);
+
+    	// Write to z-buffer, so mirrored objects will appear correctly in mirror
         glDepthMask(GL_TRUE);
-    	
+
+    	// Render mirrored objects
         RenderModels(models, shader_program, 0.1, true);
 
+    	// Disable stencil test
         glDisable(GL_STENCIL_TEST);
 
         // Render ImGui
@@ -288,26 +302,26 @@ void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderPr
     for (size_t i = 1; i < models.size(); i++)
     {
         auto model = models[i];
-        auto world_transform = model->GetWorldTransform();
 
         // Set material
-        float factor = mirror ? 0.3 : 1.0;
+        const float factor = mirror ? 0.3 : 1.0;
         shader_program.SetUniform("material.ambient", factor * model->GetMaterial().GetAmbientColor());
         shader_program.SetUniform("material.diffuse", factor * model->GetMaterial().GetDiffuseColor());
 
     	// Determine y-axis offset
-        float offset;
-        if(!mirror)
+        const float offset = -model->GetBoundingBox().min_coeffs.y + height;
+        glm::mat4 world_transform = glm::mat4(1);
+
+    	// If requested, mirror across the XZ plane
+        if (mirror)
         {
-            offset = -model->GetBoundingBox().min_coeffs.y + height;
-        }
-        else
-        {
-            offset = -model->GetBoundingBox().max_coeffs.y - height;
+            world_transform = glm::scale(world_transform, glm::vec3(1, -1, 1));
         }
 
+    	// Place the model above the XZ plane
+        world_transform = glm::translate(world_transform, glm::vec3(0, offset, 0));
+
     	// Set world transform
-        world_transform = glm::translate(glm::mat4(1), glm::vec3(0, offset, 0));
         model->SetWorldTransform(world_transform);
 
     	// Update model transform uniform
