@@ -12,10 +12,10 @@ out vec3 frag_normal;
 
 void main()
 {
-	// Pass to fragment shader the assiciated vertex position
+	// Pass to fragment shader the associated vertex position
 	frag_pos = vec3(model * vec4(pos, 1.0f));
 
-	// Pass to fragment shader the assiciated vertex normal
+	// Pass to fragment shader the associated vertex normal
 	frag_normal = mat3(model) * normal;
 
 	// Run position through pipeline
