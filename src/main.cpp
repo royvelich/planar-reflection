@@ -31,6 +31,13 @@
 #define INITIAL_HEIGHT 768
 
 /**
+ * Function definitions
+ */
+void TransformModels(const std::vector<std::shared_ptr<ObjModel>>& models);
+void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program, float height, bool mirror);
+void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program);
+
+/**
  * Main
  */
 int main(int, char**)
@@ -104,8 +111,8 @@ int main(int, char**)
 	// Plane
     auto plane_model = std::make_shared<ObjModel>(PLANE_MODEL_PATH);
     models.push_back(plane_model);
-    plane_model->GetMaterial().SetAmbientColor(glm::vec3(0.5,0.5,0.5));
-    plane_model->GetMaterial().SetDiffuseColor(glm::vec3(0.5, 0.5, 0.5));
+    plane_model->GetMaterial().SetAmbientColor(glm::vec3(0.6,0.6,0.6));
+    plane_model->GetMaterial().SetDiffuseColor(glm::vec3(0.6, 0.6, 0.6));
 
 	// Camera
 	auto camera = std::make_shared<Camera>(
@@ -166,10 +173,10 @@ int main(int, char**)
         ImGui::ColorEdit3("Clear color", (float*)&clear_color);
         if(ImGui::ColorEdit3("Model color", (float*)&model_color))
         {
-			if(models.size() > 1)
-			{
-                models[active_model]->GetMaterial().SetAmbientColor(model_color);
-                models[active_model]->GetMaterial().SetDiffuseColor(model_color);
+			for(size_t i = 1; i < models.size(); i++)
+            {
+                models[i]->GetMaterial().SetAmbientColor(model_color);
+                models[i]->GetMaterial().SetDiffuseColor(model_color);
 			}
         }
     	
@@ -202,47 +209,26 @@ int main(int, char**)
         shader_program.SetUniform("view", cameras[active_camera]->GetViewTransform());
         shader_program.SetUniform("projection", cameras[active_camera]->GetProjectionTransform());
 
-    	for (size_t i = 0; i < models.size(); i++)
-        {
-            auto model = models[i];
-            auto local_transform = model->GetLocalTransform();
-            auto world_transform = model->GetWorldTransform();
+        
+        TransformModels(models);
+        RenderModels(models, shader_program, 0.1, false);
 
-            // Set material
-            shader_program.SetUniform("material.ambient", model->GetMaterial().GetAmbientColor());
-            shader_program.SetUniform("material.diffuse", model->GetMaterial().GetDiffuseColor());
-    		
-    		if(i == 0)
-    		{
-                local_transform = glm::scale(glm::mat4(1), glm::vec3(3, 3, 3));
+        glEnable(GL_STENCIL_TEST);
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+        glStencilMask(0xFF);
+        glDepthMask(GL_FALSE);
+        glClear(GL_STENCIL_BUFFER_BIT);
+    	
+        RenderPlane(models, shader_program);
 
-                model->SetLocalTransform(local_transform);
-                model->SetWorldTransform(world_transform);
+        glStencilFunc(GL_EQUAL, 1, 0xFF);
+        glStencilMask(0x00);
+        glDepthMask(GL_TRUE);
+    	
+        RenderModels(models, shader_program, 0.1, true);
 
-                shader_program.SetUniform("model", model->GetModelTransform());
-                model->Render();
-    		}
-            else
-            {
-                local_transform = glm::rotate(local_transform, glm::pi<float>() / 300, glm::vec3(0, 1, 0));
-                model->SetLocalTransform(local_transform);
-
-                float hover_height = 0.1;
-                float bottom = model->GetBoundingBox().min_coeffs.y;
-                world_transform = glm::translate(glm::mat4(1), glm::vec3(0, -bottom + hover_height, 0));
-                model->SetWorldTransform(world_transform);
-
-                shader_program.SetUniform("model", model->GetModelTransform());
-                model->Render();
-
-                float top = model->GetBoundingBox().max_coeffs.y;
-                world_transform = glm::translate(glm::mat4(1), glm::vec3(0, -top - hover_height, 0));
-                model->SetWorldTransform(world_transform);
-
-                shader_program.SetUniform("model", model->GetModelTransform());
-                model->Render();
-            }
-    	}
+        glDisable(GL_STENCIL_TEST);
 
         // Render ImGui
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -265,4 +251,69 @@ int main(int, char**)
     glfwTerminate();
 
     return 0;
+}
+
+void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program)
+{
+    auto model = models[0];
+	
+    // Set material
+    shader_program.SetUniform("material.ambient", model->GetMaterial().GetAmbientColor());
+    shader_program.SetUniform("material.diffuse", model->GetMaterial().GetDiffuseColor());
+
+	// Scale plane
+    glm::mat4 local_transform = glm::scale(glm::mat4(1), glm::vec3(3, 3, 3));
+    model->SetLocalTransform(local_transform);
+
+    // Update model transform uniform
+    shader_program.SetUniform("model", model->GetModelTransform());
+
+	// Render
+    model->Render();
+}
+
+void TransformModels(const std::vector<std::shared_ptr<ObjModel>>& models)
+{
+    for (size_t i = 1; i < models.size(); i++)
+    {
+        auto model = models[i];
+        auto local_transform = model->GetLocalTransform();
+        local_transform = glm::rotate(local_transform, glm::pi<float>() / 300, glm::vec3(0, 1, 0));
+        model->SetLocalTransform(local_transform);
+    }
+}
+
+void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program, float height, bool mirror)
+{
+    for (size_t i = 1; i < models.size(); i++)
+    {
+        auto model = models[i];
+        auto world_transform = model->GetWorldTransform();
+
+        // Set material
+        float factor = mirror ? 0.3 : 1.0;
+        shader_program.SetUniform("material.ambient", factor * model->GetMaterial().GetAmbientColor());
+        shader_program.SetUniform("material.diffuse", factor * model->GetMaterial().GetDiffuseColor());
+
+    	// Determine y-axis offset
+        float offset;
+        if(!mirror)
+        {
+            offset = -model->GetBoundingBox().min_coeffs.y + height;
+        }
+        else
+        {
+            offset = -model->GetBoundingBox().max_coeffs.y - height;
+        }
+
+    	// Set world transform
+        world_transform = glm::translate(glm::mat4(1), glm::vec3(0, offset, 0));
+        model->SetWorldTransform(world_transform);
+
+    	// Update model transform uniform
+        shader_program.SetUniform("model", model->GetModelTransform());
+
+    	// Render
+        model->Render();
+    }
 }
