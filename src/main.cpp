@@ -276,7 +276,7 @@ void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderPro
     shader_program.SetUniform("material.diffuse", model->GetMaterial().GetDiffuseColor());
 
 	// Scale plane
-    glm::mat4 local_transform = glm::scale(glm::mat4(1), glm::vec3(3, 3, 3));
+    glm::mat4 local_transform = glm::scale(glm::mat4(1), glm::vec3(2, 2, 2));
     model->SetLocalTransform(local_transform);
 
     // Update model transform uniform
