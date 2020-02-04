@@ -20,6 +20,14 @@ public:
 		glm::vec3 normal;
 		glm::vec2 uv;
 	};
+
+	class BoundingBox
+	{
+	public:
+		BoundingBox();
+		glm::vec3 max_coeffs;
+		glm::vec3 min_coeffs;
+	};
 	
 	ObjModel(const std::string& file_path);
 	ObjModel(const std::string& file_path, const Material& material);
@@ -46,6 +54,8 @@ public:
 	const glm::mat4& GetLocalTransform() const;
 	const glm::mat4& GetWorldTransform() const;
 	glm::mat4 GetModelTransform() const;
+
+	const BoundingBox& GetBoundingBox() const;
 	
 private:
 	void CreateBuffers();
@@ -65,6 +75,8 @@ private:
 		std::vector<uint32_t> position_indices,
 		std::vector<uint32_t> normal_indices,
 		std::vector<uint32_t> uv_indices);
+	static BoundingBox CalculateBoundingBox(const std::vector<glm::vec3>& positions);
+	static std::vector<glm::vec3> NormalizePositions(const std::vector<glm::vec3>& positions);
 	
 	std::vector<glm::vec3> positions_;
 	std::vector<glm::vec3> normals_;
@@ -82,6 +94,8 @@ private:
 	glm::mat4 world_transform_;
 
 	Material material_;
+
+	BoundingBox bounding_box_;
 
 	bool loaded_;
 };

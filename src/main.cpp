@@ -201,22 +201,47 @@ int main(int, char**)
         // Set view and projection transformations
         shader_program.SetUniform("view", cameras[active_camera]->GetViewTransform());
         shader_program.SetUniform("projection", cameras[active_camera]->GetProjectionTransform());
-    	
-    	for (auto& model : models)
+
+    	for (size_t i = 0; i < models.size(); i++)
         {
+            auto model = models[i];
             auto local_transform = model->GetLocalTransform();
-            local_transform = glm::rotate(local_transform, glm::pi<float>() / 300, glm::vec3(0, 1, 0));
-            model->SetLocalTransform(local_transform);
-    		
-            // Set transformations
-            shader_program.SetUniform("model", model->GetModelTransform());
+            auto world_transform = model->GetWorldTransform();
 
             // Set material
             shader_program.SetUniform("material.ambient", model->GetMaterial().GetAmbientColor());
             shader_program.SetUniform("material.diffuse", model->GetMaterial().GetDiffuseColor());
+    		
+    		if(i == 0)
+    		{
+                local_transform = glm::scale(glm::mat4(1), glm::vec3(3, 3, 3));
 
-            // Render model
-            model->Render();
+                model->SetLocalTransform(local_transform);
+                model->SetWorldTransform(world_transform);
+
+                shader_program.SetUniform("model", model->GetModelTransform());
+                model->Render();
+    		}
+            else
+            {
+                local_transform = glm::rotate(local_transform, glm::pi<float>() / 300, glm::vec3(0, 1, 0));
+                model->SetLocalTransform(local_transform);
+
+                float hover_height = 0.1;
+                float bottom = model->GetBoundingBox().min_coeffs.y;
+                world_transform = glm::translate(glm::mat4(1), glm::vec3(0, -bottom + hover_height, 0));
+                model->SetWorldTransform(world_transform);
+
+                shader_program.SetUniform("model", model->GetModelTransform());
+                model->Render();
+
+                float top = model->GetBoundingBox().max_coeffs.y;
+                world_transform = glm::translate(glm::mat4(1), glm::vec3(0, -top - hover_height, 0));
+                model->SetWorldTransform(world_transform);
+
+                shader_program.SetUniform("model", model->GetModelTransform());
+                model->Render();
+            }
     	}
 
         // Render ImGui

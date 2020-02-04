@@ -3,6 +3,7 @@
 #include <istream>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 
 ObjModel::ObjModel(const std::string& file_path) :
 	vao_(0),
@@ -214,6 +215,12 @@ void ObjModel::LoadModel(const std::string& file_path)
 		}
 	}
 
+	// Normalize positions to the unit cube
+	positions_ = NormalizePositions(positions_);
+
+	// Calculate axis aligned bounding box
+	bounding_box_ = CalculateBoundingBox(positions_);
+
 	// Estimate vertex normals in case they were not provided in the OBJ file
 	if(normals_.empty())
 	{
@@ -327,4 +334,63 @@ std::vector<ObjModel::Vertex> ObjModel::InterleaveData(
 	}
 
 	return vertices;
+}
+
+std::vector<glm::vec3> ObjModel::NormalizePositions(const std::vector<glm::vec3>& positions)
+{
+	std::vector<glm::vec3> normalized_positions;
+	glm::vec3 center(0);
+
+	for(auto& position : positions)
+	{
+		center += position;
+	}
+
+	center = center / static_cast<float>(positions.size());
+
+	for (auto& position : positions)
+	{
+		normalized_positions.push_back(position - center);
+	}
+
+	glm::vec3 max_coeff(0);
+	for (auto& position : normalized_positions)
+	{
+		max_coeff = glm::max(max_coeff, glm::abs(position));
+	}
+
+	for (auto& position : normalized_positions)
+	{
+		float factor = std::max(std::max(max_coeff.x, max_coeff.y), max_coeff.z);
+		if (factor > std::numeric_limits<float>::epsilon())
+		{
+			position /= factor;
+		}
+	}
+
+	return normalized_positions;
+}
+
+ObjModel::BoundingBox ObjModel::CalculateBoundingBox(const std::vector<glm::vec3>& positions)
+{
+	BoundingBox bounding_box;
+	for (auto& position : positions)
+	{
+		bounding_box.max_coeffs = glm::max(bounding_box.max_coeffs, position);
+		bounding_box.min_coeffs = glm::min(bounding_box.min_coeffs, position);
+	}
+
+	return bounding_box;
+}
+
+const ObjModel::BoundingBox& ObjModel::GetBoundingBox() const
+{
+	return bounding_box_;
+}
+
+ObjModel::BoundingBox::BoundingBox() :
+	max_coeffs(glm::vec3(0)),
+	min_coeffs(glm::vec3(0))
+{
+	
 }
