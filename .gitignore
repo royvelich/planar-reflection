@@ -1,6 +1,9 @@
 # CMake build folder
 build
 
+# ImGui
+imgui.ini
+
 # Prerequisites
 *.d
 

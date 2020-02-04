@@ -209,7 +209,7 @@ int main(int, char**)
         shader_program.SetUniform("view", cameras[active_camera]->GetViewTransform());
         shader_program.SetUniform("projection", cameras[active_camera]->GetProjectionTransform());
 
-		// Roate models around y-axis  
+		// Rotate models around y-axis  
         TransformModels(models);
 
     	// Render models
