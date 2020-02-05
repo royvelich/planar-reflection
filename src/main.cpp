@@ -116,7 +116,7 @@ int main(int, char**)
 
 	// Camera
 	auto camera = std::make_shared<Camera>(
-		glm::vec3(0,5,-10), 
+		glm::vec3(0,5,-6), 
 		glm::vec3(0,0,0), 
 		glm::vec3(0,1,0),
 		float(width) / float(height),
