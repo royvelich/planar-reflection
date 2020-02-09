@@ -34,8 +34,10 @@
  * Function definitions
  */
 void TransformModels(const std::vector<std::shared_ptr<ObjModel>>& models);
-void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program, float height, bool mirror);
-void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program);
+void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, const glm::vec3& plane_normal, float distance, ShaderProgram& shader_program, bool mirror);
+void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, const glm::vec3& position, const glm::vec3& normal, ShaderProgram& shader_program);
+glm::mat4 CalculateRotationMatrix(const glm::mat4& mat, const glm::vec3& vec1, const glm::vec3& vec2);
+glm::mat4 CalculateReflectionMatrix(const glm::vec3& normal);
 
 /**
  * Main
@@ -109,6 +111,8 @@ int main(int, char**)
 	 */
 
 	// Plane
+	glm::vec3 plane_position(0, 0, 0);
+	glm::vec3 plane_normal(0, 1, -1);
     auto plane_model = std::make_shared<ObjModel>(PLANE_MODEL_PATH);
     models.push_back(plane_model);
     plane_model->GetMaterial().SetAmbientColor(glm::vec3(0.6,0.6,0.6));
@@ -116,7 +120,7 @@ int main(int, char**)
 
 	// Camera
 	auto camera = std::make_shared<Camera>(
-		glm::vec3(0,5,-6), 
+		glm::vec3(0,0,-6), 
 		glm::vec3(0,0,0), 
 		glm::vec3(0,1,0),
 		float(width) / float(height),
@@ -125,7 +129,7 @@ int main(int, char**)
 
 	// Point light
 	auto point_light = std::make_shared<PointLight>(
-        glm::vec3(0, 5, 0),
+        glm::vec3(0, 0, -8),
         glm::vec3(0.2, 0.2, 0.2),
         glm::vec3(0.5, 0.5, 0.5));
 
@@ -213,7 +217,7 @@ int main(int, char**)
         TransformModels(models);
 
     	// Render models
-        RenderModels(models, point_lights[active_light], shader_program, 0.1, false);
+        RenderModels(models, point_lights[active_light], plane_normal, 2.0f, shader_program, false);
 
     	// Enable stencil test
         glEnable(GL_STENCIL_TEST);
@@ -227,7 +231,7 @@ int main(int, char**)
         glDepthMask(GL_FALSE);
 
     	// Render mirror plane
-        RenderPlane(models, point_lights[active_light], shader_program);
+        RenderPlane(models, point_lights[active_light], plane_position, plane_normal, shader_program);
 
     	// Set teh stencil test to pass only at fragments which were rendered by the mirror plane
         glStencilFunc(GL_EQUAL, 1, 0xFF);
@@ -239,7 +243,7 @@ int main(int, char**)
         glDepthMask(GL_TRUE);
 
     	// Render mirrored objects
-        RenderModels(models, point_lights[active_light], shader_program, 0.1, true);
+        RenderModels(models, point_lights[active_light], plane_normal, 2.0f, shader_program, true);
 
     	// Disable stencil test
         glDisable(GL_STENCIL_TEST);
@@ -267,7 +271,7 @@ int main(int, char**)
     return 0;
 }
 
-void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program)
+void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, const glm::vec3& position, const glm::vec3& normal, ShaderProgram& shader_program)
 {
     auto model = models[0];
 
@@ -279,7 +283,7 @@ void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, const std
     shader_program.SetUniform("material.diffuse", model->GetMaterial().GetDiffuseColor());
 
 	// Scale plane
-    glm::mat4 local_transform = glm::scale(glm::mat4(1), glm::vec3(2, 2, 2));
+	glm::mat4 local_transform = glm::translate(CalculateRotationMatrix(glm::scale(glm::mat4(1), glm::vec3(2, 2, 2)), glm::vec3(0,1,0), normal), position);
     model->SetLocalTransform(local_transform);
 
     // Update model transform uniform
@@ -300,17 +304,26 @@ void TransformModels(const std::vector<std::shared_ptr<ObjModel>>& models)
     }
 }
 
-void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program, float height, bool mirror)
+void RenderModels(
+	const std::vector<std::shared_ptr<ObjModel>>& models,
+	const std::shared_ptr<PointLight>& active_light,
+	const glm::vec3& plane_normal,
+	float distance,
+	ShaderProgram& shader_program,
+	bool mirror)
 {
-	glm::vec4 light_position = glm::vec4(active_light->GetPosition(), 1);
-	glm::mat4 reflection_transform = glm::scale(glm::mat4(1), glm::vec3(1, -1, 1));
+	auto light_position = active_light->GetPosition();
+	glm::vec3 normalized_plane_normal = glm::normalize(plane_normal);
+	float light_distance = glm::dot(active_light->GetPosition(), normalized_plane_normal);
 
 	if (mirror)
 	{
-		light_position = reflection_transform * light_position;
+		light_position = light_position - 2.0f * light_distance * normalized_plane_normal;
 	}
 
 	shader_program.SetUniform("point_light.position", glm::vec3(light_position));
+
+
 
     for (size_t i = 1; i < models.size(); i++)
     {
@@ -322,17 +335,32 @@ void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, const st
         shader_program.SetUniform("material.diffuse", factor * model->GetMaterial().GetDiffuseColor());
 
     	// Determine y-axis offset
-        const float offset = -model->GetBoundingBox().min_coeffs.y + height;
+
+		
+
+
+		glm::vec3 offset = normalized_plane_normal * distance;
         glm::mat4 world_transform = glm::mat4(1);
 
     	// If requested, mirror across the XZ plane
         if (mirror)
         {
-            world_transform = glm::scale(world_transform, glm::vec3(1, -1, 1));
+			//glm::mat4 rot = CalculateRotationMatrix(glm::mat4(1), glm::vec3(0, 1, 0), -plane_normal);
+
+			glm::mat4 reflection = CalculateReflectionMatrix(normalized_plane_normal);
+
+			//world_transform = reflection;
+
+			world_transform = reflection * glm::translate(glm::mat4(1), offset);
+			//world_transform = rot;
         }
+		else
+		{
+			world_transform = glm::translate(world_transform, offset);
+		}
 
     	// Place the model above the XZ plane
-        world_transform = glm::translate(world_transform, glm::vec3(0, offset, 0));
+        //world_transform = glm::translate(world_transform, glm::vec3(0, offset, 0));
 
     	// Set world transform
         model->SetWorldTransform(world_transform);
@@ -343,4 +371,29 @@ void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, const st
     	// Render
         model->Render();
     }
+}
+
+glm::mat4 CalculateRotationMatrix(const glm::mat4& mat, const glm::vec3& vec1, const glm::vec3& vec2)
+{
+	auto vec1_normalized = glm::normalize(vec1);
+	auto vec2_normalized = glm::normalize(vec2);
+	glm::vec3 axis = glm::cross(vec2_normalized, vec1_normalized);
+	float angle = -glm::acos(glm::dot(vec1_normalized, vec2_normalized));
+	return glm::rotate(mat, angle, axis);
+}
+
+glm::mat4 CalculateReflectionMatrix(const glm::vec3& normal)
+{
+	float x = normal.x;
+	float y = normal.y;
+	float z = normal.z;
+	glm::mat4 reflection = glm::mat4
+	(
+		1 - 2 * x * x, -2 * y * x, -2 * z * x, 0.0,
+		-2 * y * x, 1 - 2 * y * y, -2 * y * z, 0.0,
+		-2 * z * x, -2 * y * z, 1 - 2 * z * z, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	);
+
+	return reflection;
 }
