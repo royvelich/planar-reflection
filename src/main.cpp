@@ -34,8 +34,8 @@
  * Function definitions
  */
 void TransformModels(const std::vector<std::shared_ptr<ObjModel>>& models);
-void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program, float height, bool mirror);
-void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program);
+void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program, float height, bool mirror);
+void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program);
 
 /**
  * Main
@@ -125,7 +125,7 @@ int main(int, char**)
 
 	// Point light
 	auto point_light = std::make_shared<PointLight>(
-        camera->GetEye(),
+        glm::vec3(0, 5, 0),
         glm::vec3(0.2, 0.2, 0.2),
         glm::vec3(0.5, 0.5, 0.5));
 
@@ -201,7 +201,7 @@ int main(int, char**)
         shader_program.Use();
 
         // Set lights
-        shader_program.SetUniform("point_light.position", point_lights[active_light]->GetPosition());
+        //shader_program.SetUniform("point_light.position", point_lights[active_light]->GetPosition());
         shader_program.SetUniform("point_light.ambient", point_lights[active_light]->GetAmbientLight());
         shader_program.SetUniform("point_light.diffuse", point_lights[active_light]->GetDiffuseLight());
 
@@ -213,7 +213,7 @@ int main(int, char**)
         TransformModels(models);
 
     	// Render models
-        RenderModels(models, shader_program, 0.1, false);
+        RenderModels(models, point_lights[active_light], shader_program, 0.1, false);
 
     	// Enable stencil test
         glEnable(GL_STENCIL_TEST);
@@ -227,7 +227,7 @@ int main(int, char**)
         glDepthMask(GL_FALSE);
 
     	// Render mirror plane
-        RenderPlane(models, shader_program);
+        RenderPlane(models, point_lights[active_light], shader_program);
 
     	// Set teh stencil test to pass only at fragments which were rendered by the mirror plane
         glStencilFunc(GL_EQUAL, 1, 0xFF);
@@ -239,7 +239,7 @@ int main(int, char**)
         glDepthMask(GL_TRUE);
 
     	// Render mirrored objects
-        RenderModels(models, shader_program, 0.1, true);
+        RenderModels(models, point_lights[active_light], shader_program, 0.1, true);
 
     	// Disable stencil test
         glDisable(GL_STENCIL_TEST);
@@ -267,9 +267,12 @@ int main(int, char**)
     return 0;
 }
 
-void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program)
+void RenderPlane(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program)
 {
     auto model = models[0];
+
+	// Set light position
+	shader_program.SetUniform("point_light.position", active_light->GetPosition());
 	
     // Set material
     shader_program.SetUniform("material.ambient", model->GetMaterial().GetAmbientColor());
@@ -297,14 +300,24 @@ void TransformModels(const std::vector<std::shared_ptr<ObjModel>>& models)
     }
 }
 
-void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, ShaderProgram& shader_program, float height, bool mirror)
+void RenderModels(const std::vector<std::shared_ptr<ObjModel>>& models, const std::shared_ptr<PointLight>& active_light, ShaderProgram& shader_program, float height, bool mirror)
 {
+	glm::vec4 light_position = glm::vec4(active_light->GetPosition(), 1);
+	glm::mat4 reflection_transform = glm::scale(glm::mat4(1), glm::vec3(1, -1, 1));
+
+	if (mirror)
+	{
+		light_position = reflection_transform * light_position;
+	}
+
+	shader_program.SetUniform("point_light.position", glm::vec3(light_position));
+
     for (size_t i = 1; i < models.size(); i++)
     {
         auto model = models[i];
 
         // Set material
-        const float factor = mirror ? 0.3 : 1.0;
+        const float factor = mirror ? 1.0 : 1.0;
         shader_program.SetUniform("material.ambient", factor * model->GetMaterial().GetAmbientColor());
         shader_program.SetUniform("material.diffuse", factor * model->GetMaterial().GetDiffuseColor());
 
